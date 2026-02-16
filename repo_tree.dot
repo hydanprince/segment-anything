@@ -1,0 +1,90 @@
+digraph repo_tree {
+  rankdir=LR;
+  node [shape=folder, fontsize=12];
+
+  "root" [label="/ (repo root)"];
+
+  "root" -> "segment.py";
+  "root" -> "README.md";
+  "root" -> "setup.py";
+  "root" -> "assets";
+  "root" -> "demo";
+  "root" -> "images";
+  "root" -> "notebooks";
+  "root" -> "scripts";
+  "root" -> "segment_anything";
+  "root" -> "outputs";
+
+  "assets" [label="assets/"];
+
+  "demo" [label="demo/"];
+  "demo" -> "demo/configs";
+  "demo" -> "demo/src";
+  "demo/configs" [label="demo/configs/"];
+  "demo/configs" -> "demo/configs/webpack";
+  "demo/configs/webpack" [label="webpack/"];
+  "demo/configs/webpack" -> "common.js";
+  "demo/configs/webpack" -> "dev.js";
+  "demo/configs/webpack" -> "prod.js";
+
+  "demo/src" [label="demo/src/"];
+  "demo/src" -> "App.tsx";
+  "demo/src" -> "index.tsx";
+  "demo/src" -> "demo/src/components";
+  "demo/src/components" [label="components/"];
+  "demo/src/components" -> "Stage.tsx";
+  "demo/src/components" -> "Tool.tsx";
+  "demo/src/components" -> "helpers/";
+  "demo/src/components" -> "hooks/";
+  "demo/src/components/helpers/" [label="helpers/"];
+  "demo/src/components/helpers/" -> "Interfaces.tsx";
+  "demo/src/components/helpers/" -> "maskUtils.tsx";
+  "demo/src/components/helpers/" -> "onnxModelAPI.tsx";
+  "demo/src/components/helpers/" -> "scaleHelper.tsx";
+  "demo/src/components/hooks/" [label="hooks/"];
+  "demo/src/components/hooks/" -> "context.tsx";
+  "demo/src/components/hooks/" -> "createContext.tsx";
+
+  "images" [label="images/"];
+  "images" -> "masks1.png";
+  "images" -> "masks2.jpg";
+  "images" -> "minidemo.gif";
+  "images" -> "model_diagram.png";
+  "images" -> "notebook1.png";
+  "images" -> "notebook2.png";
+  "images" -> "cattleimage22.jpeg";
+
+  "notebooks" [label="notebooks/"];
+  "notebooks" -> "automatic_mask_generator_example.ipynb";
+  "notebooks" -> "onnx_model_example.ipynb";
+  "notebooks" -> "predictor_example.ipynb";
+
+  "scripts" [label="scripts/"];
+  "scripts" -> "amg.py";
+  "scripts" -> "export_onnx_model.py";
+
+  "segment_anything" [label="segment_anything/"];
+  "segment_anything" -> "segment_anything/modeling";
+  "segment_anything" -> "segment_anything/utils";
+  "segment_anything" -> "segment_anything/automatic_mask_generator.py";
+  "segment_anything" -> "segment_anything/build_sam.py";
+  "segment_anything" -> "segment_anything/predictor.py";
+
+  "segment_anything/modeling" [label="modeling/"];
+  "segment_anything/modeling" -> "common.py";
+  "segment_anything/modeling" -> "image_encoder.py";
+  "segment_anything/modeling" -> "mask_decoder.py";
+  "segment_anything/modeling" -> "prompt_encoder.py";
+  "segment_anything/modeling" -> "sam.py";
+  "segment_anything/modeling" -> "transformer.py";
+
+  "segment_anything/utils" [label="utils/"];
+  "segment_anything/utils" -> "amg.py";
+  "segment_anything/utils" -> "muzzle_crop.py";
+  "segment_anything/utils" -> "onnx.py";
+  "segment_anything/utils" -> "transforms.py";
+
+  "outputs" [label="outputs/"];
+
+  { rank = same; "segment.py"; "README.md"; "setup.py" }
+}
