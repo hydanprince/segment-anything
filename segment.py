@@ -10,7 +10,7 @@ from segment_anything import sam_model_registry, SamPredictor
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
 
 YOLO_MODEL_PATH = "yolov8n.pt"
-SAM_CHECKPOINT_PATH = "weights/sam_vit_l_0b3195.pth"
+SAM_CHECKPOINT_PATH = "/home/prince/segment-anything/weights/sam_vit_l_0b3195.pth"
 
 def main():
     # ---------------------------
@@ -162,3 +162,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
