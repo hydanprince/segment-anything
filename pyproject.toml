@@ -1,0 +1,39 @@
+[project]
+name = "segment_anything"
+version = "1.0.0"
+description = "Segment Anything Model (SAM) for promptable image segmentation."
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "Meta AI Research, FAIR"}
+]
+keywords = ["segmentation", "computer-vision", "foundation-model", "sam", "mask"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "torch>=1.7",
+    "torchvision>=0.8",
+    "numpy>=1.20.0",
+]
+
+[project.optional-dependencies]
+all = ["matplotlib", "pycocotools", "opencv-python", "onnx", "onnxruntime"]
+dev = ["flake8", "isort", "black", "mypy"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["segment_anything*"]
+
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
