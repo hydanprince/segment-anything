@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 6
+names: ['20', '45', '54', '60', '71', '80']
+
+roboflow:
+  workspace: horndetection
+  project: cattle-face-dataset-8i3jw
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/horndetection/cattle-face-dataset-8i3jw/dataset/1
