@@ -1,7 +1,24 @@
 Metadata-Version: 2.4
 Name: segment_anything
-Version: 1.0
+Version: 1.0.0
+Summary: Segment Anything Model (SAM) for promptable image segmentation.
+Author: Meta AI Research, FAIR
+License: Apache-2.0
+Keywords: segmentation,computer-vision,foundation-model,sam,mask
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
 License-File: LICENSE
+Requires-Dist: torch>=1.7
+Requires-Dist: torchvision>=0.8
+Requires-Dist: numpy>=1.20.0
 Provides-Extra: all
 Requires-Dist: matplotlib; extra == "all"
 Requires-Dist: pycocotools; extra == "all"
@@ -14,4 +31,222 @@ Requires-Dist: isort; extra == "dev"
 Requires-Dist: black; extra == "dev"
 Requires-Dist: mypy; extra == "dev"
 Dynamic: license-file
-Dynamic: provides-extra
+
+# Cattle Face Segmentation — YOLOv8 + SAM
+
+A batch pipeline that automatically detects and segments cattle faces from images using **YOLOv8** for detection and **Segment Anything Model (SAM)** for precise segmentation. Given a root input directory, it processes every image in all subdirectories and saves the results mirroring the same folder structure.
+
+---
+
+## How It Works
+
+```
+Input Image
+     │
+     ▼
+ YOLOv8 Detection
+ (detects "cattle_face" / "cow" bounding box)
+     │
+     ▼
+ SAM Segmentation
+ (generates mask from bounding box prompt)
+     │
+     ▼
+ Best Mask Selection
+ (picks largest mask area)
+     │
+     ▼
+ Background Removal + Body Trim
+ (removes background, keeps top 80% to crop body)
+     │
+     ▼
+Output Image (PNG, background black)
+```
+
+---
+
+## Requirements
+
+- Python >= 3.8
+- PyTorch >= 1.7 with CUDA (strongly recommended)
+- torchvision >= 0.8
+
+Install dependencies:
+
+```bash
+pip install torch torchvision
+pip install opencv-python numpy ultralytics
+pip install -e .
+```
+
+---
+
+## Model Weights
+
+You need two model weight files before running:
+
+**1. SAM checkpoint** — download ViT-L (used by this pipeline):
+
+```bash
+mkdir -p weights
+wget https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth -O weights/sam_vit_l_0b3195.pth
+```
+
+Other available SAM checkpoints:
+
+| Model | Size | Download |
+|-------|------|----------|
+| ViT-H (default) | ~2.5 GB | [sam_vit_h_4b8939.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth) |
+| ViT-L (used here) | ~1.2 GB | [sam_vit_l_0b3195.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth) |
+| ViT-B | ~375 MB | [sam_vit_b_01ec64.pth](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth) |
+
+**2. YOLOv8 model** — place your trained YOLOv8 weights at the project root:
+
+```
+segment-anything/
+└── yolov8n.pt        ← your trained cattle detection model
+```
+
+> The model must be trained to detect the class `cattle_face` or `cow`.
+
+---
+
+## Directory Structure
+
+```
+segment-anything/
+├── segment.py                  # Main batch processing script
+├── segment_anything/           # SAM library package
+│   ├── __init__.py
+│   ├── predictor.py
+│   ├── automatic_mask_generator.py
+│   ├── build_sam.py
+│   ├── modeling/
+│   └── utils/
+├── weights/
+│   └── sam_vit_l_0b3195.pth   # SAM checkpoint (download separately)
+├── yolov8n.pt                  # YOLOv8 model (your trained weights)
+├── setup.py
+└── README.md
+```
+
+---
+
+## Usage
+
+```bash
+python segment.py --input_dir /path/to/input_root --output_dir /path/to/output_root
+```
+
+### Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--input_dir` | Yes | Root directory containing subdirectories with images |
+| `--output_dir` | Yes | Root directory where processed images will be saved |
+
+### Supported Image Formats
+
+`.jpg`, `.jpeg`, `.png`, `.bmp`, `.tiff`, `.tif`
+
+---
+
+## Input / Output Structure
+
+The output directory mirrors the input directory structure exactly:
+
+```
+input_root/
+├── cow_001/
+│   ├── img1.jpg
+│   └── img2.jpeg
+└── cow_002/
+    ├── img3.png
+    └── img4.jpg
+
+output_root/
+├── cow_001/
+│   ├── img1.png          ← segmented cattle face
+│   └── img2.png
+├── cow_002/
+│   ├── img3.png
+│   └── img4.png
+└── errors.txt            ← failed images logged here
+```
+
+> All output images are saved as `.png` regardless of the input format.
+
+---
+
+## Error Handling
+
+If any image fails (no cattle detected, unreadable file, SAM error, etc.):
+
+- The error is **logged** to `output_dir/errors.txt` with the file path and reason
+- Processing **continues** with the next image — the entire run is never stopped
+- A summary is printed at the end
+
+**Example `errors.txt`:**
+```
+cow_001/img1.jpg | ValueError: No cow/cattle face detected
+cow_002/img3.png | FileNotFoundError: Could not read image: ...
+```
+
+**Terminal summary:**
+```
+--- Done ---
+Total images found : 120
+Successfully saved : 115
+Errors             : 5
+Error log          : /path/to/output_root/errors.txt
+```
+
+---
+
+## SAM Package — Programmatic Usage
+
+The `segment_anything` package can also be used independently in your own code.
+
+**Prompt-based segmentation:**
+```python
+from segment_anything import SamPredictor, sam_model_registry
+
+sam = sam_model_registry["vit_l"](checkpoint="weights/sam_vit_l_0b3195.pth")
+predictor = SamPredictor(sam)
+predictor.set_image(your_image)          # numpy array, RGB, HxWx3
+masks, scores, _ = predictor.predict(
+    box=np.array([x1, y1, x2, y2]),
+    multimask_output=True
+)
+```
+
+**Automatic mask generation (no prompts):**
+```python
+from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+
+sam = sam_model_registry["vit_l"](checkpoint="weights/sam_vit_l_0b3195.pth")
+mask_generator = SamAutomaticMaskGenerator(sam)
+masks = mask_generator.generate(your_image)
+```
+
+---
+
+## License
+
+The SAM model and code are licensed under the [Apache 2.0 License](LICENSE).
+
+---
+
+## Acknowledgements
+
+SAM is developed by [Meta AI Research (FAIR)](https://ai.facebook.com/research/).
+Original paper: [Segment Anything](https://ai.facebook.com/research/publications/segment-anything/) — Kirillov et al., 2023.
+
+```bibtex
+@article{kirillov2023segany,
+  title={Segment Anything},
+  author={Kirillov, Alexander and Mintun, Eric and Ravi, Nikhila and Mao, Hanzi and Rolland, Chloe and Gustafson, Laura and Xiao, Tete and Whitehead, Spencer and Berg, Alexander C. and Lo, Wan-Yen and Doll{\'a}r, Piotr and Girshick, Ross},
+  journal={arXiv:2304.02643},
+  year={2023}
+}
+```

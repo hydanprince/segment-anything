@@ -1,0 +1,2 @@
+[console_scripts]
+sa = segment_anything.cli:main

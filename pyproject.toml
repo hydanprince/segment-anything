@@ -30,6 +30,9 @@ dependencies = [
 all = ["matplotlib", "pycocotools", "opencv-python", "onnx", "onnxruntime"]
 dev = ["flake8", "isort", "black", "mypy"]
 
+[project.scripts]
+sa = "segment_anything.cli:main"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["segment_anything*"]

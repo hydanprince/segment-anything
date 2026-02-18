@@ -24,4 +24,9 @@ setup(
     install_requires=INSTALL_REQUIRES,
     packages=find_packages(exclude=("notebooks", "demo")),
     extras_require=EXTRAS_REQUIRE,
+    entry_points={
+        "console_scripts": [
+            "sa=segment_anything.cli:main",
+        ],
+    },
 )
