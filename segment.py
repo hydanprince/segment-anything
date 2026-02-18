@@ -1,112 +1,146 @@
 import os
+import argparse
 import cv2
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 from ultralytics import YOLO
 from segment_anything import sam_model_registry, SamPredictor
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif"}
+
+YOLO_MODEL_PATH = "yolov8n.pt"
+SAM_CHECKPOINT_PATH = "weights/sam_vit_l_0b3195.pth"
+
 # ---------------------------
-# 1️⃣ Device
+# Args
+# ---------------------------
+parser = argparse.ArgumentParser(description="Batch cattle face segmentation")
+parser.add_argument("--input_dir", required=True, help="Root input directory containing subdirectories with images")
+parser.add_argument("--output_dir", required=True, help="Root output directory (mirrors input structure)")
+args = parser.parse_args()
+
+input_dir = args.input_dir
+output_dir = args.output_dir
+os.makedirs(output_dir, exist_ok=True)
+
+# ---------------------------
+# Device
 # ---------------------------
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print("Using device:", device)
 
 # ---------------------------
-# 2️⃣ Paths
+# Load models once
 # ---------------------------
-IMAGE_PATH = "images/WhatsApp Image 2026-02-18 at 16.52.50.jpeg"  # Replace with your test image
-OUTPUT_PATH = "outputs/cattle_face_only.png"
-
-YOLO_MODEL_PATH = "yolov8n.pt"  # Trained YOLOv8 model weights
-SAM_CHECKPOINT_PATH = "weights/sam_vit_l_0b3195.pth"  # SAM checkpoint
-
-os.makedirs(os.path.dirname(OUTPUT_PATH), exist_ok=True)
-
-# ---------------------------
-# 3️⃣ Load image
-# ---------------------------
-image = cv2.imread(IMAGE_PATH)
-if image is None:
-    raise FileNotFoundError(f"Image not found: {IMAGE_PATH}")
-
-image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-
-# ---------------------------
-# 4️⃣ Load YOLOv8 model
-# ---------------------------
+print("Loading YOLO model...")
 yolo_model = YOLO(YOLO_MODEL_PATH)
 
-results = yolo_model(image)
-
-cow_box = None
-
-for r in results:
-    for box in r.boxes:
-        cls_id = int(box.cls[0])
-        class_name = yolo_model.names[cls_id]
-        if class_name.lower() in ["cattle_face", "cow"]:  # adjust to your class
-            cow_box = box.xyxy[0].cpu().numpy()
-            break
-    if cow_box is not None:
-        break
-
-if cow_box is None:
-    raise ValueError("No cow/cattle face detected in image")
-
-x1, y1, x2, y2 = map(int, cow_box)
-print(f"Detected box: {x1, y1, x2, y2}")
-
-# ---------------------------
-# 5️⃣ Load SAM
-# ---------------------------
+print("Loading SAM model...")
 sam = sam_model_registry["vit_l"](checkpoint=SAM_CHECKPOINT_PATH)
 sam.to(device)
 predictor = SamPredictor(sam)
-predictor.set_image(image_rgb)
-
-input_box = np.array([x1, y1, x2, y2])
-
-masks, scores, _ = predictor.predict(
-    box=input_box,
-    multimask_output=True
-)
-
-# Select largest mask
-mask_areas = [np.sum(mask) for mask in masks]
-best_mask = masks[np.argmax(mask_areas)]
 
 # ---------------------------
-# 6️⃣ Apply mask and remove background
+# Error log
 # ---------------------------
-masked_image = image_rgb.copy()
-masked_image[~best_mask] = 0
+error_log_path = os.path.join(output_dir, "errors.txt")
+error_log = open(error_log_path, "w")
+
+total = 0
+success = 0
+errors = 0
 
 # ---------------------------
-# 7️⃣ Remove body (trim bottom 20%)
+# Walk input directory
 # ---------------------------
-ys, xs = np.where(best_mask)
-top = ys.min()
-bottom = ys.max()
-left = xs.min()
-right = xs.max()
+for root, dirs, files in os.walk(input_dir):
+    for filename in files:
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in IMAGE_EXTENSIONS:
+            continue
 
-height = bottom - top
-new_bottom = top + int(height * 0.80)  # keep top 80%, trim bottom 20%
-cropped_face = masked_image[top:new_bottom, left:right]
+        image_path = os.path.join(root, filename)
+        rel_path = os.path.relpath(image_path, input_dir)
+
+        # Mirror subdirectory structure in output
+        output_rel = os.path.splitext(rel_path)[0] + ".png"
+        output_path = os.path.join(output_dir, output_rel)
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+        total += 1
+        print(f"Processing [{total}]: {rel_path}")
+
+        try:
+            # Load image
+            image = cv2.imread(image_path)
+            if image is None:
+                raise FileNotFoundError(f"Could not read image: {image_path}")
+
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            # YOLO detection
+            results = yolo_model(image)
+            cow_box = None
+            for r in results:
+                for box in r.boxes:
+                    cls_id = int(box.cls[0])
+                    class_name = yolo_model.names[cls_id]
+                    if class_name.lower() in ["cattle_face", "cow"]:
+                        cow_box = box.xyxy[0].cpu().numpy()
+                        break
+                if cow_box is not None:
+                    break
+
+            if cow_box is None:
+                raise ValueError("No cow/cattle face detected")
+
+            x1, y1, x2, y2 = map(int, cow_box)
+
+            # SAM segmentation
+            predictor.set_image(image_rgb)
+            input_box = np.array([x1, y1, x2, y2])
+            masks, scores, _ = predictor.predict(
+                box=input_box,
+                multimask_output=True
+            )
+
+            # Select largest mask
+            mask_areas = [np.sum(mask) for mask in masks]
+            best_mask = masks[np.argmax(mask_areas)]
+
+            # Apply mask and remove background
+            masked_image = image_rgb.copy()
+            masked_image[~best_mask] = 0
+
+            # Trim bottom 20% to remove body
+            ys, xs = np.where(best_mask)
+            top = ys.min()
+            bottom = ys.max()
+            left = xs.min()
+            right = xs.max()
+            height = bottom - top
+            new_bottom = top + int(height * 0.80)
+            cropped_face = masked_image[top:new_bottom, left:right]
+
+            # Save output
+            cv2.imwrite(output_path, cv2.cvtColor(cropped_face, cv2.COLOR_RGB2BGR))
+            print(f"  Saved -> {output_path}")
+            success += 1
+
+        except Exception as e:
+            errors += 1
+            msg = f"{rel_path} | {type(e).__name__}: {e}"
+            print(f"  ERROR: {msg}")
+            error_log.write(msg + "\n")
+
+error_log.close()
 
 # ---------------------------
-# 8️⃣ Display
+# Summary
 # ---------------------------
-plt.figure(figsize=(6, 6))
-plt.imshow(cropped_face)
-plt.title("Cattle Face (No Body)")
-plt.axis("off")
-plt.show()
-
-# ---------------------------
-# 9️⃣ Save Output
-# ---------------------------
-cv2.imwrite(OUTPUT_PATH, cv2.cvtColor(cropped_face, cv2.COLOR_RGB2BGR))
-print(f"Cattle face saved to {OUTPUT_PATH}")
-
+print("\n--- Done ---")
+print(f"Total images found : {total}")
+print(f"Successfully saved : {success}")
+print(f"Errors             : {errors}")
+if errors > 0:
+    print(f"Error log          : {error_log_path}")
